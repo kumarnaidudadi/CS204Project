@@ -119,7 +119,7 @@ void first_pass(const string &input_file) {
     string current_section = "text";
 
     while (getline(infile, line)) {
-        line = line.substr(0, line.find(';'));
+        line = line.substr(0, line.find('#'));
         line = trim(line);
         if (line.empty()) continue;
 
@@ -165,7 +165,7 @@ void second_pass(const string &input_file, const string &output_file) {
 
     while (getline(infile, line)) {
         string orig_line = line;
-        line = line.substr(0, line.find(';'));
+        line = line.substr(0, line.find('#'));
         line = trim(line);
         if (line.empty()) continue;
 
@@ -350,7 +350,7 @@ void second_pass(const string &input_file, const string &output_file) {
                 for (string op : operands) {
                     int val = convertToDecimal(op);
                     outfile << "0x" << hex << data_addr 
-                            << " 0x" << setw(4) << (val & 0xFFFF) << endl;
+                            << " 0x" << setw(4) <<  setfill('0') <<(val & 0xFFFF) << endl;
                     data_addr += 2;
                 }
             }
@@ -358,7 +358,7 @@ void second_pass(const string &input_file, const string &output_file) {
                 for (string op : operands) {
                     int val = convertToDecimal(op);
                     outfile << "0x" << hex << data_addr 
-                            << " 0x" << setw(8) << val << endl;
+                            << " 0x" << setw(8) << setfill('0') << val << endl;
                     data_addr += 4;
                 }
             }
@@ -366,7 +366,7 @@ void second_pass(const string &input_file, const string &output_file) {
                 for (string op : operands) {
                     int val = convertToDecimal(op);
                     outfile << "0x" << hex << data_addr 
-                            << " 0x" << setw(16) << val << endl;
+                            << " 0x" << setw(16) << setfill('0') << val << endl;
                     data_addr += 8;
                 }
             }
@@ -374,7 +374,7 @@ void second_pass(const string &input_file, const string &output_file) {
                 string str = operands[0].substr(1, operands[0].size()-2);
                 for (char c : str) {
                     outfile << "0x" << hex << data_addr 
-                            << " 0x" << setw(2) << (int)c << endl;
+                            << " 0x" << setw(2) << setfill('0') << (int)c << endl;
                     data_addr += 1;
                 }
                 outfile << "0x" << hex << data_addr << " 0x00" << endl;
@@ -382,6 +382,7 @@ void second_pass(const string &input_file, const string &output_file) {
             }
         }
     }
+    outfile<<"TERMINATED"<<endl;
     infile.close();
     outfile.close();
 }
