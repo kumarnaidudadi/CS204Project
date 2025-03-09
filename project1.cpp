@@ -91,6 +91,7 @@ vector<string> tokenize(const string &line) {
 pair<string, string> split_offset_rs(const string &operand) {
     size_t lparen = operand.find('(');
     if (lparen == string::npos) return {"0", operand};
+    
     string offset = operand.substr(0, lparen);
     string reg = operand.substr(lparen+1);
     reg = reg.substr(0, reg.find(')'));
@@ -231,15 +232,39 @@ void second_pass(const string &input_file, const string &output_file) {
                     if (op == "jalr" || op == "lb" || op == "ld" || op == "lh" || op == "lw") {
                         // Loads/JALR: op rd, offset(rs1)
                         rd = register_map.at(tokens[1]);
+                        
+                        // Check for syntax error: missing offset in load instruction
+                        string operand = tokens[2];
+                        if (operand[0] == '(' && operand.find(')') != string::npos) {
+                            cerr << "Error: Missing offset in " << op << " instruction: " << formatted_inst << endl;
+                            exit(1);
+                        }
+                        
                         auto [offset, rs] = split_offset_rs(tokens[2]);
                         rs1 = register_map.at(rs);
                         int imm_value = convertToDecimal(offset);
+                        
+                        // Check if immediate value is within 12-bit signed range (-2048 to 2047)
+                        if (imm_value < -2048 || imm_value > 2047) {
+                            cerr << "Error: Offset value out of range for " << op << ": " << imm_value 
+                                 << " (must be between -2048 and 2047)" << endl;
+                            exit(1);
+                        }
+                        
                         imm_str = bitset<12>(imm_value).to_string();
                     } else {
                         // ALU immediates: addi/andi/ori
                         rd = register_map.at(tokens[1]);
                         rs1 = register_map.at(tokens[2]);
                         int imm_value = convertToDecimal(tokens[3]);
+                        
+                        // Check if immediate value is within 12-bit signed range (-2048 to 2047)
+                        if (imm_value < -2048 || imm_value > 2047) {
+                            cerr << "Error: Immediate value out of range for " << op << ": " << imm_value 
+                                 << " (must be between -2048 and 2047)" << endl;
+                            exit(1);
+                        }
+                        
                         imm_str = bitset<12>(imm_value).to_string();
                     }
 
@@ -251,8 +276,25 @@ void second_pass(const string &input_file, const string &output_file) {
                     // S-format instructions
                     auto [opcode, func3] = s_format[op];
                     string rs2 = register_map.at(tokens[1]);
+                    
+                    // Check for syntax error: missing offset in store instruction
+                    string operand = tokens[2];
+                    if (operand[0] == '(' && operand.find(')') != string::npos) {
+                        cerr << "Error: Missing offset in " << op << " instruction: " << formatted_inst << endl;
+                        exit(1);
+                    }
+                    
                     auto [offset, rs1] = split_offset_rs(tokens[2]);
-                    bitset<12> imm(convertToDecimal(offset));
+                    int imm_value = convertToDecimal(offset);
+                    
+                    // Check if immediate value is within 12-bit signed range (-2048 to 2047)
+                    if (imm_value < -2048 || imm_value > 2047) {
+                        cerr << "Error: Offset value out of range for " << op << ": " << imm_value 
+                             << " (must be between -2048 and 2047)" << endl;
+                        exit(1);
+                    }
+                    
+                    bitset<12> imm(imm_value);
                     
                     string imm_hi = imm.to_string().substr(0, 7);
                     string imm_lo = imm.to_string().substr(7, 5);
@@ -260,7 +302,6 @@ void second_pass(const string &input_file, const string &output_file) {
                     instruction_format = opcode + "-" + func3 + "-NULL-" +
                                        rs1 + "-" + rs2 + "-" + imm.to_string();
                 }
-                
                 else if (sb_format.find(op) != sb_format.end()) {
                     auto [opcode, func3] = sb_format[op];
                     string rs1 = register_map.at(tokens[1]);
@@ -273,6 +314,13 @@ void second_pass(const string &input_file, const string &output_file) {
                         offset = target_addr - text_addr;
                     } else {
                         offset = convertToDecimal(tokens[3]);
+                    }
+                    
+                    // Check if branch offset is within 13-bit signed range (-4096 to 4095) and aligned
+                    if (offset < -4096 || offset > 4095 || (offset % 2) != 0) {
+                        cerr << "Error: Branch offset out of range or not aligned for " << op << ": " << offset 
+                             << " (must be between -4096 and 4095 and be 2-byte aligned)" << endl;
+                        exit(1);
                     }
                 
                     // Branch offsets must be divided by 2 for word alignment
@@ -291,15 +339,20 @@ void second_pass(const string &input_file, const string &output_file) {
                                         rs1 + "-" + rs2 + "-" +
                                         imm.to_string();
                 }
-                
-                
-                
-
                 else if (u_format.find(op) != u_format.end()) {
                     // U-format instructions
                     string opcode = u_format[op];
                     string rd = register_map.at(tokens[1]);
-                    bitset<20> imm(convertToDecimal(tokens[2]) & 0xFFFFF);
+                    int imm_value = convertToDecimal(tokens[2]);
+                    
+                    // Check if immediate value is within 20-bit unsigned range (0 to 1048575)
+                    if (imm_value < 0 || imm_value > 1048575) {
+                        cerr << "Error: Immediate value out of range for " << op << ": " << imm_value 
+                             << " (must be between 0 and 1048575)" << endl;
+                        exit(1);
+                    }
+                    
+                    bitset<20> imm(imm_value & 0xFFFFF);
                     
                     binary_code = imm.to_string() + rd + opcode;
                     instruction_format = opcode + "-NULL-NULL-" +
@@ -316,6 +369,13 @@ void second_pass(const string &input_file, const string &output_file) {
                         offset = target_addr - text_addr;
                     } else {
                         offset = convertToDecimal(tokens[2]);
+                    }
+                    
+                    // Check if jump offset is within 21-bit signed range (-1048576 to 1048575) and aligned
+                    if (offset < -1048576 || offset > 1048575 || (offset % 2) != 0) {
+                        cerr << "Error: Jump offset out of range or not aligned for " << op << ": " << offset 
+                             << " (must be between -1048576 and 1048575 and be 2-byte aligned)" << endl;
+                        exit(1);
                     }
                     
                     // JAL offsets use 21 bits to handle signed values
@@ -335,9 +395,6 @@ void second_pass(const string &input_file, const string &output_file) {
                                         rd + "-NULL-" +
                                         imm_str;
                 }
-                
-                
-                
 
                 outfile << "0x" << hex << text_addr << " " << bin_to_hex(binary_code)
                         << " , " << formatted_inst << " # " << instruction_format << endl;
