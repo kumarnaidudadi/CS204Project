@@ -1,5 +1,15 @@
 # RISC-V Assembler (Phase 1)
 
+## Project Details
+
+- **Course**: CS204 - Computer Architecture
+- **Phase 1**: Assembly to Machine Code Conversion
+
+### Submitted by:
+1. **CH. Rithish Reddy** (2023CSB1113)
+2. **Dadi Kumar Naidu** (2023CSB1115)
+3. **Polisetty Tharun Sai** (2023CSB1144)
+
 ## Overview
 
 This project implements a **32-bit RISC-V assembler** that converts assembly language instructions into machine code. The assembler processes an `.asm` file and generates a corresponding `.mc` file with machine code output. 
