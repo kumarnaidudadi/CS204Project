@@ -64,8 +64,17 @@ vector<string> tokenize(const string &line) {
     string token;
     bool in_quote = false;
     
-    for (char c : line) {
+    for (size_t i = 0; i < line.length(); i++) {
+        char c = line[i];
         if (c == '"') in_quote = !in_quote;
+        
+        // Special handling for colons (label markers)
+        if (c == ':' && !in_quote && !token.empty()) {
+            tokens.push_back(trim(token) + ":");
+            token.clear();
+            continue;
+        }
+        
         if ((c == ',' || isspace(c)) && !in_quote) {
             if (!token.empty()) {
                 tokens.push_back(trim(token));
@@ -124,36 +133,27 @@ void first_pass(const string &input_file) {
         if (line.empty()) continue;
 
         vector<string> tokens = tokenize(line);
-        if (tokens.empty()) continue;
 
-        // Handle labels - Modified to handle labels with/without spaces after colons
-        if (!tokens.empty()) {
-            size_t colon_pos = tokens[0].find(':');
-            if (colon_pos != string::npos) {
-                string label = tokens[0].substr(0, colon_pos);
-                string remainder = tokens[0].substr(colon_pos + 1);
-                label_table[label] = (current_section == "text") ? text_addr : data_addr;
-                
-                if (remainder.empty()) {
-                    // Case: "label:"
-                    tokens.erase(tokens.begin());
-                } else {
-                    // Case: "label:.word" -> replace with ".word"
-                    tokens[0] = remainder;
-                }
-            }
+        // Handle labels
+        if (!tokens.empty() && tokens[0].back() == ':') {
+            string label = tokens[0].substr(0, tokens[0].size()-1);
+            label_table[label] = (current_section == "text") ? text_addr : data_addr;     
+            tokens.erase(tokens.begin());
         }
 
         if (tokens.empty()) continue;
-
+        
         // Section handling
         if (tokens[0] == ".text") {
             current_section = "text";
-        } else if (tokens[0] == ".data") {
+        } 
+        else if (tokens[0] == ".data") {
             current_section = "data";
-        } else if (current_section == "text") {
+        } 
+        else if (current_section == "text") {
             text_addr += 4;
-        } else if (current_section == "data") {
+        }
+        else if (current_section == "data") {
             if (tokens[0] == ".byte") data_addr += tokens.size()-1;
             else if (tokens[0] == ".half") data_addr += 2*(tokens.size()-1);
             else if (tokens[0] == ".word") data_addr += 4*(tokens.size()-1);
@@ -162,6 +162,7 @@ void first_pass(const string &input_file) {
                 string str = tokens[1].substr(1, tokens[1].size()-2);
                 data_addr += str.size() + 1;
             }
+            else cerr<<"unrecognised token in data segment " << line <<endl;
         }
     }
     infile.close();
@@ -183,24 +184,11 @@ void second_pass(const string &input_file, const string &output_file) {
 
         vector<string> tokens = tokenize(line);
 
-        // Handle labels - Modified to handle labels with/without spaces after colons
-        if (!tokens.empty()) {
-            size_t colon_pos = tokens[0].find(':');
-            if (colon_pos != string::npos) {
-                string label = tokens[0].substr(0, colon_pos);
-                string remainder = tokens[0].substr(colon_pos + 1);
-                
-                if (remainder.empty()) {
-                    // Case: "label:"
-                    tokens.erase(tokens.begin());
-                } else {
-                    // Case: "label:.word" -> replace with ".word"
-                    tokens[0] = remainder;
-                }
-            }
+        // Handle labels
+        if (!tokens.empty() && tokens[0].back() == ':') {
+            tokens.erase(tokens.begin());
+            if (tokens.empty()) continue;
         }
-
-        if (tokens.empty()) continue;
 
         // Section handling
         if (!tokens.empty() && tokens[0] == ".text") {
@@ -272,6 +260,7 @@ void second_pass(const string &input_file, const string &output_file) {
                     instruction_format = opcode + "-" + func3 + "-NULL-" +
                                        rs1 + "-" + rs2 + "-" + imm.to_string();
                 }
+                
                 else if (sb_format.find(op) != sb_format.end()) {
                     auto [opcode, func3] = sb_format[op];
                     string rs1 = register_map.at(tokens[1]);
@@ -302,6 +291,10 @@ void second_pass(const string &input_file, const string &output_file) {
                                         rs1 + "-" + rs2 + "-" +
                                         imm.to_string();
                 }
+                
+                
+                
+
                 else if (u_format.find(op) != u_format.end()) {
                     // U-format instructions
                     string opcode = u_format[op];
@@ -342,6 +335,9 @@ void second_pass(const string &input_file, const string &output_file) {
                                         rd + "-NULL-" +
                                         imm_str;
                 }
+                
+                
+                
 
                 outfile << "0x" << hex << text_addr << " " << bin_to_hex(binary_code)
                         << " , " << formatted_inst << " # " << instruction_format << endl;
