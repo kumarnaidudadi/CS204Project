@@ -29,7 +29,7 @@ unordered_map<string, pair<string, string>> s_format = {
 unordered_map<string, pair<string, string>> sb_format = {
     {"beq", {"1100011", "000"}}, {"bne", {"1100011", "001"}},
     {"blt", {"1100011", "100"}}, {"bge", {"1100011", "101"}},
-    {"ble", {"1100011", "101"}}, {"bgt", {"1100011", "100"}} // Added ble and bgt
+    {"ble", {"1100011", "101"}}, {"bgt", {"1100011", "100"}} 
 };
 
 unordered_map<string, string> u_format = {
