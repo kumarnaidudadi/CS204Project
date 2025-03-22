@@ -485,7 +485,7 @@ void second_pass(const string &input_file, const string &output_file) {
 
 int main() {
     first_pass("input.asm");
-    second_pass("input.asm", "output.mc");
+    second_pass("../src/input.asm", "../test/output.mc");
     cout << "Assembly successfully converted to machine code." << endl;
     return 0;
 }
