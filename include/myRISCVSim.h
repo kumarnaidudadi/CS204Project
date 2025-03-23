@@ -2,6 +2,7 @@
 #define MYRISCVSIM_H
 
 #include <bits/stdc++.h>
+#include <map>
 using namespace std;
 
 class Simulator {
@@ -9,7 +10,7 @@ class Simulator {
         // Data members (instance variables)
         unordered_map<string, string> textSegment;  //indexed based on pc
         unordered_map<string, string> registerFile; //indexed based on 5 bit - registor number 
-        unordered_map<string, string> memory;       //byte addressible 
+        map<string, string> memory;       //byte addressible 
         string size; 
         
         string pcMuxPc; 
@@ -39,6 +40,7 @@ class Simulator {
 
     // Constructor
     Simulator();
+    void parseMemoryFile(const string &filename);
     void load_program_memory(const string& filename); // Method to load program memory
     void run_RISCVSim(); // Run simulation
     void reset();

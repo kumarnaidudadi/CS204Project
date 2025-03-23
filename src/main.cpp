@@ -18,8 +18,15 @@ int main(int argc, char* argv[]) {
     std::cout.rdbuf(outFile.rdbuf()); 
 
     Simulator sim;
-    sim.load_program_memory(inputFilename);  
+    sim.parseMemoryFile(inputFilename);
+    sim.load_program_memory(inputFilename); 
+    
+    
     sim.run_RISCVSim();  
+    
+    for (auto &[addr, val] : sim.memory) {
+        if (val!="00") cout << "memory[" << addr << "] = " << val << endl;  
+    }
 
     return 0;
 }

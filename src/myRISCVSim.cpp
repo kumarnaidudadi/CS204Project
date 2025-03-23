@@ -6,7 +6,7 @@ using namespace std;
 
 // Constructor to initialize default values
 
-Simulator::Simulator() : pcMuxPc(""), pcTemp(""), ir(""), rd(nullopt), rs1(""), rs2(""), func3(""), func7(""),
+Simulator::Simulator() : pcMuxPc(""), pcTemp(""), ir(""), rd(nullopt), rs1(""), rs2(""), func3(""), func7(""),size(""),
                 immMuxB(""), immMuxInr(""), aluOp(""), muxPc(false), muxInr(false), muxMa(false),
                 regWrite(false), ra(""), rb(""), rm(""), rz(""), mdr(""), mar(""), condition(false) {
 
@@ -17,6 +17,71 @@ Simulator::Simulator() : pcMuxPc(""), pcTemp(""), ir(""), rd(nullopt), rs1(""), 
     memRead = nullopt;
     memWrite = nullopt;
     muxB = nullopt;
+}
+
+void Simulator:: parseMemoryFile(const string &filename) {
+    unsigned int start_address = 0x10000000;
+    unsigned int end_address = 0x10002100;
+    
+    // Initialize memory with zeroes
+    for (unsigned int addr = start_address; addr < end_address; addr++) {
+        stringstream ss;
+        ss << hex << "0x" << setw(8) << setfill('0') << addr;
+        
+        string temp = ss.str();
+        for (size_t i = 2; i < temp.size(); i++) { // Start from index 2 to skip "0x"
+            temp[i] = toupper(temp[i]);
+        }
+        memory[temp] = "00";
+    }
+    
+    ifstream file(filename);
+    if (!file) {
+        cerr << "Error: Unable to open file!" << endl;
+        return;
+    }
+    
+    string line;
+    while (getline(file, line)) {
+        istringstream iss(line);
+        string addressStr, valueStr;
+        
+        if (!(iss >> addressStr >> valueStr)) {
+            continue; // Skip invalid lines
+        }
+        
+        if (addressStr == "0x0") {
+            break; // Stop when instruction section starts
+        }
+        
+        // Remove '0x' prefix and extract last two hex digits per byte
+        valueStr = valueStr.substr(2);
+        int valueSize = valueStr.length();
+        
+        for (int i = 0; i < valueSize; i += 2) {
+            string byteValue = valueStr.substr(valueSize - 2 - i, 2);
+            stringstream ss;
+            ss << "0x" << setw(8) << setfill('0') << hex << (stoul(addressStr, nullptr, 16) + (i / 2));
+
+            string temp = ss.str();
+            for (size_t i = 2; i < temp.size(); i++) { // Start from index 2 to skip "0x"
+                temp[i] = toupper(temp[i]);
+            }
+
+            memory[temp] = byteValue;
+        }
+
+    }
+    return;    
+}
+
+int binaryStringToDecimal(const std::string& bin) {
+    if (bin.length() != 32) {
+        throw std::invalid_argument("Input must be a 32-bit binary string.");
+    }
+    
+    uint32_t num = std::bitset<32>(bin).to_ulong(); // Convert binary string to unsigned int
+    return (num & (1 << 31)) ? static_cast<int>(num - (1ULL << 32)) : static_cast<int>(num);
 }
 
 void Simulator:: load_program_memory(const string& filename) {
@@ -43,8 +108,6 @@ void Simulator:: load_program_memory(const string& filename) {
     pcMuxPc = "0x00000000";
 }
 
-
-
 void Simulator:: run_RISCVSim() {
     while (textSegment.find(pcMuxPc) != textSegment.end()) {
         fetch();
@@ -52,10 +115,20 @@ void Simulator:: run_RISCVSim() {
         execute();
         memoryAccess();
         writeBack();
+
+        bool print = false;
+        cout<<"*********************************************************************\n";
+        for(auto i : memory){
+            if (i.first == "0x10000500" || i.first == "0x10000530") print = !print ;
+            if (print) cout<<i.first<<"->"<<i.second<<endl;
+        }
+        cout<<"*********************************************************************\n";
+
     }
 }
 
 void Simulator:: reset() {
+    // cout<<"--------------------reset in simulator-------"<<endl;
     pcTemp = "";
     ir = "";
     rd = nullopt;
@@ -63,6 +136,7 @@ void Simulator:: reset() {
     rs2 = "";
     func3 = "";
     func7 = "";
+    size = "";
     immMuxB = "";
     immMuxInr = "";
     aluOp = "";
@@ -149,7 +223,7 @@ void Simulator:: fetch() {
 }   
 
 void Simulator:: decode() {
-    if (ir == "" || ir.length() != 10) { // Ensure IR is valid (0xXXXXXXXX format)
+    if (ir == "" || ir.length() != 10) { 
         cout << "Error: Invalid instruction in IR" << endl;
         return;
     }
@@ -261,11 +335,11 @@ void Simulator:: decode() {
         rd  = binary.substr(20, 5);
         rs1 = binary.substr(12, 5);
         func3 = binary.substr(17, 3);
-        string immMuxB = binary.substr(0, 12); // Extract first 12 bits
+        immMuxB = binary.substr(0, 12); // Extract first 12 bits
 
 
         cout<<binary<<" "<<rd.value()<<" "<<rs1<<endl;
-        
+        cout<<"IMM muxb "<<immMuxB<<endl;        
         ra = regGet(rs1);
         // Extract and sign-extend the 12-bit immediate
         int immValue = stoi(immMuxB, nullptr, 2);
@@ -273,9 +347,11 @@ void Simulator:: decode() {
             immValue -= (1 << 12); 
         }
         immMuxB = bitset<32>(immValue).to_string();
+        cout<<"IMM muxb "<<immMuxB<<endl;        
+
         
         // Determine memory access size based on func3
-        string size;
+        
         if (func3 == "000") {
             size = "BYTE"; // lb (load byte)
         } else if (func3 == "001") {
@@ -300,7 +376,8 @@ void Simulator:: decode() {
         memRead = true;
         memWrite = false;
         regWrite = true;
-        muxB = true;   
+        muxB = true;  
+        cout<<"IMM muxb  load--------------------------"<<immMuxB<<endl;        
     }
     else if (opcode == "1100111") { // JALR
         rd  = binary.substr(20, 5);
@@ -325,6 +402,8 @@ void Simulator:: decode() {
         memWrite = false;
         regWrite = true;
         muxB = nullopt;
+        cout<<"IMM muxb  jump--------------------------"<<immMuxB<<endl;        
+
     }
     else if (opcode == "0100011") { // S-Type (sb, sw, sd, sh)
         rs1 = binary.substr(12, 5);
@@ -343,7 +422,7 @@ void Simulator:: decode() {
         immMuxB = bitset<32>(immValue).to_string();
         
         // Determine size based on func3
-        string size;
+        
         if (func3 == "000") {
             size = "BYTE"; // sb
         } else if (func3 == "001") {
@@ -367,9 +446,12 @@ void Simulator:: decode() {
         memWrite = true;
         regWrite = false;
         muxB = true;
+        cout<<"IMM muxb  storeeeeeeeeeeee--------------------------"<<immMuxB<<endl;        
+
+
     }
     else if (opcode == "1100011") { // SB-Type (beq, bne, bge, blt)
-        //cout<<binary<<endl;
+        //cout<<"this is ir in binary"<<binary<<endl;
         rs1 = binary.substr(12, 5);
         rs2 = binary.substr(7, 5);
         func3 = binary.substr(17, 3);
@@ -378,13 +460,12 @@ void Simulator:: decode() {
     
         string imm12 = binary.substr(0, 1);       // Bit 31
         string imm10_5 = binary.substr(1, 6);     // Bits 30-25
-        string imm4 = binary.substr(24, 1);       // Bit 11
-        string imm11 = binary.substr(7, 1);       // Bit 7
-        string imm9_8 = binary.substr(8, 2);      // Bits 10-8
+        string imm11 = binary.substr(24, 1);      // Bit 7
+        string imm4_1 = binary.substr(20, 4);     // Bits 11-8
 
-        // Combine the bits to form the immediate
-        string imm = imm12 + imm11 + imm10_5 + imm9_8 + imm4 + "0"; // Add a trailing 0 (<<1 shift)
-        cout<<"this is imm in branch"<<imm<<endl; // Final SB-type immediate
+        // Combine the bits correctly and add a trailing 0 for left shift
+        string imm = imm12 + imm11 + imm10_5 + imm4_1 + "0";  // Shift left by 1
+        cout<<"this is imm in branch "<<imm<<endl; // Final SB-type immediate
 
         // Convert to integer and sign-extend
         int immValue = stoi(imm, nullptr, 2);
@@ -416,6 +497,9 @@ void Simulator:: decode() {
         memWrite = false;
         regWrite = false;
         muxB = false;
+        cout<<"IMM muxb  branch--------------------------"<<immMuxB<<endl;        
+
+
     }
     else if (opcode == "0110111") { // U-Type (LUI)
         rd = binary.substr(20, 5);
@@ -438,6 +522,8 @@ void Simulator:: decode() {
         memWrite = false;
         regWrite = true;
         muxB = true;
+        cout<<"IMM muxb  store--------------------------"<<immMuxB<<endl;        
+
     }
     else if (opcode == "0010111") { // U-Type (AUIPC)
         rd = binary.substr(20, 5);
@@ -461,6 +547,8 @@ void Simulator:: decode() {
         memWrite = false;
         regWrite = true;
         muxB = true;
+        cout<<"IMM muxb  store--------------------------"<<immMuxB<<endl;        
+
     }
     else if (opcode == "1101111") { // UJ-Type (JAL)
         rd = binary.substr(20, 5);
@@ -485,12 +573,15 @@ void Simulator:: decode() {
         memWrite = false;
         regWrite = true;
         muxB = nullopt;    //dontcare value
+        cout<<"IMM muxb  store--------------------------"<<immMuxB<<endl;        
+
     }
     else {
         cout << "Error: Unsupported opcode " << opcode << endl;
         return;
     }
-    
+    cout<<"IMM muxb out --------------------------"<<immMuxB<<endl;        
+
     // Debug output
     cout << "Decode Stage:" << endl;
     cout << "Opcode: " << opcode << endl;
@@ -499,11 +590,14 @@ void Simulator:: decode() {
     cout << "rs2: " << rs2 << endl;
     cout << "func3: " << func3 << endl;
     cout << "func7: " << (!func7.empty() ? func7 : "Not supported" )<< endl;
+    cout<<"IMM muxb "<<immMuxB<<endl;        
+
     if (!immMuxB.empty()) {
         cout << "Immediate: " << immMuxB << endl;
     } else if (!immMuxInr.empty()) {
         cout << "Immediate: " << immMuxInr << endl;
     }    
+
 }  
 
 void Simulator:: execute() {
@@ -514,19 +608,19 @@ void Simulator:: execute() {
     
     // Convert ra and rb from hex to int, handling null cases
     unsigned int op1 = (ra != "") ? stoul(ra.substr(2), nullptr, 16) : 0;
+    cout<<"ra "<<ra<<endl;
+    cout<<"op1 "<<op1<<endl;
     unsigned int op2 = 0;
     
     //check for op2 among rs2 and immediate 12-bit ,based on dontcare and muxB control value
     if (muxB.has_value() && muxB.value()) {
+        cout<<"muxb has val in execute "<<muxB.has_value()<<muxB.value()<<endl;
+        cout<<"IMM muxb"<<immMuxB<<endl;
         op2 = (immMuxB != "") ? stoul(immMuxB, nullptr, 2) : 0; // Immediate value for I-type & S-type
     } else if (rb != "") {
         op2 = stoul(rb.substr(2), nullptr, 16); // Register value for R-type & SB-type
     }
-    //else{
-    //     cout<<"Error accesing second operand"<<endl;
-    //     return;
-    // }
-    
+    cout<<"op2 "<<op2<<endl;
     int result = 0;
     
     // Execute ALU operation
@@ -640,16 +734,17 @@ void Simulator:: memoryAccess() {
             //since pc is alaready updated to pc+4 we need to subtract 4
             cout<<"this is imminr value"<<immMuxInr<<endl;
 
-            pcValue += stoi(immMuxInr, nullptr, 2) - 4; 
-            cout<<"this is pc value"<<pcValue<<endl;
+            int immValue = binaryStringToDecimal(immMuxInr);
+
+            // Adjust for PC update
+            pcValue += immValue - 4;
 
             stringstream ss;
             ss << uppercase << setfill('0') << setw(8) << hex << pcValue;
             pcMuxPc = "0x" + ss.str();
-            cout<<"this is pc value"<<pcValue<<endl;
-            cout<<"this is pc : "<<pcMuxPc<<endl;
 
-            
+            // cout<<"this is pc value "<<pcValue<<endl;
+            // cout<<"this is pcMuxPx : "<<pcMuxPc<<endl;   
         }
     } else {
         cout<<"mar has value"<<endl;
@@ -663,7 +758,9 @@ void Simulator:: memoryAccess() {
             string loadedValue;
             if (size == "BYTE") {
                 char buf[16];
+                
                 snprintf(buf, sizeof(buf), "0x%08X", address);
+                cout<<"in byte buf = "<<buf<<"this is memory[buf]"<<memory[buf]<<endl;
                 loadedValue = (memory.find(buf) != memory.end()) ? memory[buf] : "00";
             } else if (size == "HALF") {
                 for (int i = 0; i < 2; i++) {
@@ -675,7 +772,9 @@ void Simulator:: memoryAccess() {
                 for (int i = 0; i < 4; i++) {
                     char buf[16];
                     snprintf(buf, sizeof(buf), "0x%08X", address + i);
+                    
                     loadedValue = ((memory.find(buf) != memory.end()) ? memory[buf] : "00") + loadedValue;
+
                 }
             } else if (size == "DOUBLE") {
                 for (int i = 0; i < 8; i++) {
@@ -726,6 +825,7 @@ void Simulator:: memoryAccess() {
                 for (int i = 0; i < 4; i++) {
                     char buf[16];
                     snprintf(buf, sizeof(buf), "0x%08X", address + i);
+                    cout<<"buf = "<<buf<<"  value = " <<  value.substr(value.size() - (2 * (i + 1)), 2)<<endl;
                     memory[buf] = value.substr(value.size() - (2 * (i + 1)), 2);
                 }
             } else if (size == "DOUBLE") {
