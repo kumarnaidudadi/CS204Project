@@ -6,7 +6,7 @@
 - **Phase 1**: Assembly to Machine Code Conversion
 
 ### Submitted by:
-1. **CH. Rithish Reddy** (2023CSB1113)
+1. **Ch.V.Rithish Reddy** (2023CSB1113)
 2. **Dadi Kumar Naidu** (2023CSB1115)
 3. **Polisetty Tharun Sai** (2023CSB1144)
 
