@@ -14,6 +14,8 @@ unordered_map<string, tuple<string, string, string>> r_format = {
     {"div", {"0110011", "100", "0000001"}}, {"rem", {"0110011", "110", "0000001"}}
 };
 
+
+
 unordered_map<string, tuple<string, string>> i_format = {
     {"addi", {"0010011", "000"}}, {"andi", {"0010011", "111"}},
     {"ori",  {"0010011", "110"}}, {"lb",   {"0000011", "000"}},
@@ -29,8 +31,8 @@ unordered_map<string, pair<string, string>> s_format = {
 unordered_map<string, pair<string, string>> sb_format = {
     {"beq", {"1100011", "000"}}, {"bne", {"1100011", "001"}},
     {"blt", {"1100011", "100"}}, {"bge", {"1100011", "101"}},
-    {"ble", {"1100011", "101"}}, {"bgt", {"1100011", "100"}} 
-};
+}; 
+
 
 unordered_map<string, string> u_format = {
     {"auipc", "0010111"}, {"lui", "0110111"}
@@ -131,7 +133,6 @@ void first_pass(const string &input_file) {
         if (line.empty()) continue;
 
         vector<string> tokens = tokenize(line);
-
         // handling the labels
         if (!tokens.empty() && tokens[0].back() == ':') {
             string label = tokens[0].substr(0, tokens[0].size()-1);
@@ -253,10 +254,14 @@ void second_pass(const string &input_file, const string &output_file) {
                                 exit(1);
                             }
                         } 
-                        else if (tokens.size() == 4) {
+                        else if (tokens.size() == 4 && op != "jalr") {
                             // Format: rd, offset, rs1
                             offset = tokens[2];
                             rs = tokens[3];
+                        }
+                        else if(tokens.size()==4 && op=="jalr"){
+                            offset=tokens[3];
+                            rs=tokens[2];
                         }
                         rs1 = register_map.at(rs);
                         int imm_value = convertToDecimal(offset);
@@ -485,7 +490,7 @@ void second_pass(const string &input_file, const string &output_file) {
 
 int main() {
     first_pass("input.asm");
-    second_pass("../src/input.asm", "../test/output.mc");
+    second_pass("input.asm", "../test/output.mc");
     cout << "Assembly successfully converted to machine code." << endl;
     return 0;
 }
