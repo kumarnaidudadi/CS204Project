@@ -4,11 +4,67 @@
 #include "myRISCVSim.h"
 using namespace std;
 
-// Constructor to initialize default values
+string intToHex(uint32_t num) {
+    stringstream ss;
+    ss << "0x" << hex << uppercase << num;
+    return ss.str();
+}
+
+void Simulator::resetRegisterFile() {
+    registerFile["x0"]  = "0x00000000";
+    registerFile["x1"]  = "0x00000000";
+    registerFile["x2"]  = "0x7FFFFFDC";
+    registerFile["x3"]  = "0x10000000";
+    registerFile["x4"]  = "0x00000000";
+    registerFile["x5"]  = "0x00000000";
+    registerFile["x6"]  = "0x00000000";
+    registerFile["x7"]  = "0x00000000";
+    registerFile["x8"]  = "0x00000000";
+    registerFile["x9"]  = "0x00000000";
+    registerFile["x10"] = "0x00000001";
+    registerFile["x11"] = "0x7FFFFFDC";
+    registerFile["x12"] = "0x00000000";
+    registerFile["x13"] = "0x00000000";
+    registerFile["x14"] = "0x00000000";
+    registerFile["x15"] = "0x00000000";
+    registerFile["x16"] = "0x00000000";
+    registerFile["x17"] = "0x00000000";
+    registerFile["x18"] = "0x00000000";
+    registerFile["x19"] = "0x00000000";
+    registerFile["x20"] = "0x00000000";
+    registerFile["x21"] = "0x00000000";
+    registerFile["x22"] = "0x00000000";
+    registerFile["x23"] = "0x00000000";
+    registerFile["x24"] = "0x00000000";
+    registerFile["x25"] = "0x00000000";
+    registerFile["x26"] = "0x00000000";
+    registerFile["x27"] = "0x00000000";
+    registerFile["x28"] = "0x00000000";
+    registerFile["x29"] = "0x00000000";
+    registerFile["x30"] = "0x00000000";
+    registerFile["x31"] = "0x00000000";
+}
+
+void Simulator::resetStack() {
+    for (uint32_t addr = 0x7FFFFFDC; addr >= 0x7FFFFF90; ) {  
+        string temp = intToHex(addr);
+
+        // Convert to uppercase (skip "0x" prefix)
+        for (size_t i = 2; i < temp.size(); i++) {
+            temp[i] = toupper(temp[i]);
+        }
+
+        stack[temp] = "00"; // Initialize each byte with "00"
+        // Stop decrementing when addr reaches 0x7FFFFF90
+        if (addr == 0x7FFFFF90) break;
+        addr -= 4;
+    }
+}
 
 Simulator::Simulator() : pcMuxPc(""), pcTemp(""), ir(""), rd(nullopt), rs1(""), rs2(""), func3(""), func7(""),size(""),
                 immMuxB(""), immMuxInr(""), aluOp(""), muxPc(false), muxInr(false), muxMa(false),
-                regWrite(false), ra(""), rb(""), rm(""), rz(""), mdr(""), mar(""), condition(false) {
+                regWrite(false), ra(""), rb(""), rm(""), rz(""), mdr(""), mar(""), condition(false)          
+                {
 
 // Optionals are default-initialized to nullopt
     clock = nullopt;
@@ -17,6 +73,8 @@ Simulator::Simulator() : pcMuxPc(""), pcTemp(""), ir(""), rd(nullopt), rs1(""), 
     memRead = nullopt;
     memWrite = nullopt;
     muxB = nullopt;
+    resetRegisterFile(); //resets reg file 
+    resetStack(); //resets the stack 
 }
 
 void Simulator:: parseMemoryFile(const string &filename) {
@@ -53,7 +111,7 @@ void Simulator:: parseMemoryFile(const string &filename) {
         if (addressStr == "0x0") {
             break; // Stop when instruction section starts
         }
-        
+
         // Remove '0x' prefix and extract last two hex digits per byte
         valueStr = valueStr.substr(2);
         int valueSize = valueStr.length();
@@ -67,20 +125,18 @@ void Simulator:: parseMemoryFile(const string &filename) {
             for (size_t i = 2; i < temp.size(); i++) { // Start from index 2 to skip "0x"
                 temp[i] = toupper(temp[i]);
             }
-
             memory[temp] = byteValue;
         }
-
     }
     return;    
 }
 
-int binaryStringToDecimal(const std::string& bin) {
+int binaryStringToDecimal(const string& bin) {
     if (bin.length() != 32) {
-        throw std::invalid_argument("Input must be a 32-bit binary string.");
+        throw invalid_argument("Input must be a 32-bit binary string.");
     }
     
-    uint32_t num = std::bitset<32>(bin).to_ulong(); // Convert binary string to unsigned int
+    uint32_t num = bitset<32>(bin).to_ulong(); // Convert binary string to unsigned int
     return (num & (1 << 31)) ? static_cast<int>(num - (1ULL << 32)) : static_cast<int>(num);
 }
 
@@ -116,19 +172,43 @@ void Simulator:: run_RISCVSim() {
         memoryAccess();
         writeBack();
 
-        bool print = false;
-        cout<<"*********************************************************************\n";
-        for(auto i : memory){
-            if (i.first == "0x10000500" || i.first == "0x10000530") print = !print ;
-            if (print) cout<<i.first<<"->"<<i.second<<endl;
+        cout << "  \"Register File\": {\n";
+        bool first = true;
+        for (const auto& i : registerFile) {
+            if (i.second != "0x00000000") {
+                if (!first) cout << ",\n";
+                cout << "    \"" << i.first << "\": \"" << i.second << "\"";
+                first = false;
+            }
         }
-        cout<<"*********************************************************************\n";
+        cout << "\n  },\n";
+        cout << "  \"Data\": {\n";
+        first = true;
+        for (const auto& i : memory) {
+            if (i.second != "00") {
+                if (!first) cout << ",\n";
+                cout << "    \"" << i.first << "\": \"" << i.second << "\"";
+                first = false;
+            }
+        }
+        cout << "\n  },\n";
+        
+        cout << "  \"Stack\": {\n";
+        first = true;
+        for (const auto& i : stack) {
+            if (i.second != "00") {
+                if (!first) cout << ",\n";
+                cout << "    \"" << i.first << "\": \"" << i.second << "\"";
+                first = false;
+            }
+        }
+        cout << "\n  }\n";
+        cout << "}";
 
     }
 }
 
 void Simulator:: reset() {
-    // cout<<"--------------------reset in simulator-------"<<endl;
     pcTemp = "";
     ir = "";
     rd = nullopt;
@@ -148,11 +228,10 @@ void Simulator:: reset() {
     rb = "";
     rm = "";
     rz = "";
-    mdr = nullopt;  // Make sure optional variables are properly reset
+    mdr = nullopt;  
     mar = nullopt;
     condition = false;
     
-    // Optionals
     muxY = nullopt;
     branch = nullopt;
     memRead = nullopt;
@@ -167,12 +246,12 @@ string Simulator:: regGet(const string &r){
     if (registerFile.find(regKey.str()) != registerFile.end()){
         return registerFile[regKey.str()];
     } 
+    cerr<<"register not found please give registers in range [1,31] only";
     return "0x00000000";
 }
 
 void Simulator:: fetch() {
     reset();
-    cout<<pcMuxPc<<endl;
     if (textSegment.empty()) {
         cout << "Error: Text Segment is not initialized!" << endl;
         return;
@@ -213,13 +292,15 @@ void Simulator:: fetch() {
     clock = (clock ? *clock + 1 : 1);
 
     // Debugging output
-    cout << "-------------------\n";
-    cout << "Fetch Stage:\n";
-    cout << "PC: " << pcHex << "\n";
-    cout << "Instruction Register (IR): " << ir << "\n";
-    cout << "Updated PC: " << pcTemp << "\n";
-    cout << "Clock Cycle: " << clock.value() << "\n";
-    cout << "-------------------\n";
+    if (clock >1 ) cout<<",\n";
+    cout << "{\n";
+    cout << "  \"Clock Cycle\": " << clock.value() << ",\n";
+    cout << "  \"Fetch Stage\": {\n";
+    cout << "    \"PC\": \"" << pcMuxPc << "\",\n";
+    cout << "    \"IR\": \"" << ir << "\",\n";
+    cout << "    \"Updated PC\": \"" << pcTemp << "\"\n";
+    cout << "  },\n";
+    
 }   
 
 void Simulator:: decode() {
@@ -336,10 +417,7 @@ void Simulator:: decode() {
         rs1 = binary.substr(12, 5);
         func3 = binary.substr(17, 3);
         immMuxB = binary.substr(0, 12); // Extract first 12 bits
-
-
-        cout<<binary<<" "<<rd.value()<<" "<<rs1<<endl;
-        cout<<"IMM muxb "<<immMuxB<<endl;        
+        
         ra = regGet(rs1);
         // Extract and sign-extend the 12-bit immediate
         int immValue = stoi(immMuxB, nullptr, 2);
@@ -347,11 +425,8 @@ void Simulator:: decode() {
             immValue -= (1 << 12); 
         }
         immMuxB = bitset<32>(immValue).to_string();
-        cout<<"IMM muxb "<<immMuxB<<endl;        
-
         
         // Determine memory access size based on func3
-        
         if (func3 == "000") {
             size = "BYTE"; // lb (load byte)
         } else if (func3 == "001") {
@@ -377,7 +452,6 @@ void Simulator:: decode() {
         memWrite = false;
         regWrite = true;
         muxB = true;  
-        cout<<"IMM muxb  load--------------------------"<<immMuxB<<endl;        
     }
     else if (opcode == "1100111") { // JALR
         rd  = binary.substr(20, 5);
@@ -402,8 +476,6 @@ void Simulator:: decode() {
         memWrite = false;
         regWrite = true;
         muxB = nullopt;
-        cout<<"IMM muxb  jump--------------------------"<<immMuxB<<endl;        
-
     }
     else if (opcode == "0100011") { // S-Type (sb, sw, sd, sh)
         rs1 = binary.substr(12, 5);
@@ -446,9 +518,6 @@ void Simulator:: decode() {
         memWrite = true;
         regWrite = false;
         muxB = true;
-        cout<<"IMM muxb  storeeeeeeeeeeee--------------------------"<<immMuxB<<endl;        
-
-
     }
     else if (opcode == "1100011") { // SB-Type (beq, bne, bge, blt)
         //cout<<"this is ir in binary"<<binary<<endl;
@@ -465,7 +534,6 @@ void Simulator:: decode() {
 
         // Combine the bits correctly and add a trailing 0 for left shift
         string imm = imm12 + imm11 + imm10_5 + imm4_1 + "0";  // Shift left by 1
-        cout<<"this is imm in branch "<<imm<<endl; // Final SB-type immediate
 
         // Convert to integer and sign-extend
         int immValue = stoi(imm, nullptr, 2);
@@ -497,9 +565,6 @@ void Simulator:: decode() {
         memWrite = false;
         regWrite = false;
         muxB = false;
-        cout<<"IMM muxb  branch--------------------------"<<immMuxB<<endl;        
-
-
     }
     else if (opcode == "0110111") { // U-Type (LUI)
         rd = binary.substr(20, 5);
@@ -522,12 +587,11 @@ void Simulator:: decode() {
         memWrite = false;
         regWrite = true;
         muxB = true;
-        cout<<"IMM muxb  store--------------------------"<<immMuxB<<endl;        
-
     }
     else if (opcode == "0010111") { // U-Type (AUIPC)
         rd = binary.substr(20, 5);
         ra = pcMuxPc;    //select pc to ra and then enter ALU
+        
         // Extract 20-bit immediate and shift left by 12 (AUIPC semantics)
         int immValue = stoi(binary.substr(0, 20), nullptr, 2) << 12;
         // Sign-extend to 32-bit
@@ -547,11 +611,10 @@ void Simulator:: decode() {
         memWrite = false;
         regWrite = true;
         muxB = true;
-        cout<<"IMM muxb  store--------------------------"<<immMuxB<<endl;        
-
     }
     else if (opcode == "1101111") { // UJ-Type (JAL)
         rd = binary.substr(20, 5);
+        
         // Extract 20-bit JAL immediate and rearrange the bits correctly
         string immBinary = binary.substr(0, 1) + binary.substr(12, 8) + binary.substr(11, 1) + binary.substr(1, 10) + "0";
         // Convert to signed integer
@@ -573,31 +636,31 @@ void Simulator:: decode() {
         memWrite = false;
         regWrite = true;
         muxB = nullopt;    //dontcare value
-        cout<<"IMM muxb  store--------------------------"<<immMuxB<<endl;        
-
     }
     else {
         cout << "Error: Unsupported opcode " << opcode << endl;
         return;
     }
-    cout<<"IMM muxb out --------------------------"<<immMuxB<<endl;        
 
     // Debug output
-    cout << "Decode Stage:" << endl;
-    cout << "Opcode: " << opcode << endl;
-    cout << "rd: " << (rd.has_value() ? *rd : "Dont Care") << endl; //might be dontcare
-    cout << "rs1: " << rs1 << endl;
-    cout << "rs2: " << rs2 << endl;
-    cout << "func3: " << func3 << endl;
-    cout << "func7: " << (!func7.empty() ? func7 : "Not supported" )<< endl;
-    cout<<"IMM muxb "<<immMuxB<<endl;        
-
+    cout << "  \"Decode Stage\": {\n";
+    cout << "    \"Opcode\": \"" << opcode << "\",\n";
+    cout << "    \"rd\": \"" << (rd.has_value() ? *rd : "") << "\",\n";
+    cout << "    \"rs1\": \"" << rs1 << "\",\n";
+    cout << "    \"rs2\": \"" << rs2 << "\",\n";
+    cout << "    \"func3\": \"" << func3 << "\",\n";
+    cout << "    \"func7\": \"" << (!func7.empty() ? func7 : "Not supported") << "\",\n";
+    
+    cout << "    \"Immediate\":";
     if (!immMuxB.empty()) {
-        cout << "Immediate: " << immMuxB << endl;
+        cout << "\"MuxB:" << immMuxB << "\"";
     } else if (!immMuxInr.empty()) {
-        cout << "Immediate: " << immMuxInr << endl;
-    }    
-
+        cout << "\"MuxInr:" << immMuxInr << "\"";
+    } else {
+        cout << "\"Value: null\"";
+    }
+    cout << "\n},\n";
+        
 }  
 
 void Simulator:: execute() {
@@ -605,22 +668,18 @@ void Simulator:: execute() {
         cout << "Error: ALU operation not set." << endl;
         return;
     }
-    
+
     // Convert ra and rb from hex to int, handling null cases
     unsigned int op1 = (ra != "") ? stoul(ra.substr(2), nullptr, 16) : 0;
-    cout<<"ra "<<ra<<endl;
-    cout<<"op1 "<<op1<<endl;
     unsigned int op2 = 0;
     
     //check for op2 among rs2 and immediate 12-bit ,based on dontcare and muxB control value
     if (muxB.has_value() && muxB.value()) {
-        cout<<"muxb has val in execute "<<muxB.has_value()<<muxB.value()<<endl;
-        cout<<"IMM muxb"<<immMuxB<<endl;
         op2 = (immMuxB != "") ? stoul(immMuxB, nullptr, 2) : 0; // Immediate value for I-type & S-type
     } else if (rb != "") {
         op2 = stoul(rb.substr(2), nullptr, 16); // Register value for R-type & SB-type
     }
-    cout<<"op2 "<<op2<<endl;
+
     int result = 0;
     
     // Execute ALU operation
@@ -696,161 +755,138 @@ void Simulator:: execute() {
     }
     // Debug output
     
-    cout << "Execute Stage:" << endl;
-    cout << "ALU Operation: " << aluOp << endl;
-    cout << "Operand 1 (ra): " << ((ra != "") ? ra : "NULL") << endl;
-    if (muxB.has_value() && muxB.value()) {
-        cout << "Operand 2 (rb/imm): " << (immMuxB != "" ? immMuxB : "NULL") << endl;
-    } else {
-        cout << "Operand 2 (rb/imm): " << (rb != "" ? rb : "NULL") << endl;
-    }
-    cout << "Result (rz): " << (!rz.empty()? rz : "Dont Care" )<< endl;
+    cout << "  \"Execute Stage\": {\n";
+    cout << "    \"ALU Operation\": \"" << aluOp << "\",\n";
+    cout << "    \"Operand 1\": \"" << ((ra != "") ? ra : "NULL") << "\",\n";
+    cout << "    \"Operand 2\": \"" << (muxB.has_value() && muxB.value() ? immMuxB : (rb != "" ? rb : "NULL")) << "\",\n";
+    cout << "    \"Result\": \"" << (!rz.empty() ? rz : "Dont Care") << "\"\n";
+    cout << "  },\n";
+        
     if (branch.has_value() && branch.value()) {
-        cout << "Branch Taken: " << (condition ? "true" : "false") << endl;
+        cout << "  \"Branch\": {\n";
+        cout << "    \"Status\": \"" << (condition ? "Taken" : "NOT Taken") << "\"\n";
+        cout << "  },\n";
     }
+    
 }
 
-void Simulator:: memoryAccess() {
-    if (!mar.has_value() || mar.value().length() == 0 ) {
-        cout<<"mar - null , inr - null"<<endl;
+void Simulator::memoryAccess() {
+    cout << "  \"Memory Access\": {\n";
+    
+    if (!mar.has_value() || mar.value().length() == 0) {
+        cout << "    \"Status\": \"No Access\"";
+        
         if (muxInr) {
-            cout<<"mar - null , inr - true"<<endl;
             int pcValue;
             if (muxPc) {
                 if (ra.length() < 2) {
-                    cout << "Error: ra is too short." << endl;
+                    cout << ",\n    \"Error\": \"ra is too short.\"\n";
+                    cout << "  }\n";
+                    cout << "}\n";
                     return;
                 }
                 pcValue = stoi(ra.substr(2), nullptr, 16);
             } else {
                 if (pcMuxPc.length() < 2) {
-                    cout << "Error: pcMuxPc is too short." << endl;
+                    cout << ",\n    \"Error\": \"pcMuxPc is too short.\"\n";
+                    cout << "  }\n";
+                    cout << "}\n";
                     return;
                 }
-                cout<<"this is pc : "<<pcMuxPc<<endl;
                 pcValue = stoi(pcMuxPc.substr(2), nullptr, 16);
             }
-
-            //since pc is alaready updated to pc+4 we need to subtract 4
-            cout<<"this is imminr value"<<immMuxInr<<endl;
-
+            
             int immValue = binaryStringToDecimal(immMuxInr);
-
-            // Adjust for PC update
-            pcValue += immValue - 4;
-
+            pcValue += immValue - 4 * (muxPc == false);
+            
             stringstream ss;
             ss << uppercase << setfill('0') << setw(8) << hex << pcValue;
             pcMuxPc = "0x" + ss.str();
-
-            // cout<<"this is pc value "<<pcValue<<endl;
-            // cout<<"this is pcMuxPx : "<<pcMuxPc<<endl;   
+            
+            cout << ",\n    \"MuxInr for Branch\": {\n";
+            cout << "      \"Status\": \"Taken\",\n";
+            cout << "      \"Updated PC\": \"" << pcMuxPc << "\"\n";
+            cout << "    }\n";
         }
     } else {
-        cout<<"mar has value"<<endl;
+        cout << "    \"Status\": \"Accessed\",\n";
+
         if (mar.value().length() < 2) {
-            cout << "Error: MAR is too short. MAR Content: " << mar.value() << endl;
+            cout << "    \"Error\": \"MAR is too short. MAR Content: " << mar.value() << "\"\n";
+            cout << "  },\n";
             return;
         }
         unsigned int address = stoul(mar.value().substr(2), nullptr, 16);
+        bool useStack = (address > 0x10002100);
+        auto& targetMemory = useStack ? stack : memory;
+        string memoryType = useStack ? "stack" : "memory";
+
+        cout << "    \"Type\": \"" << memoryType << "\",\n";
+        cout << "    \"Address\": \"" << mar.value() << "\"";
 
         if (memRead.has_value() && memRead.value()) {
             string loadedValue;
             if (size == "BYTE") {
                 char buf[16];
-                
                 snprintf(buf, sizeof(buf), "0x%08X", address);
-                cout<<"in byte buf = "<<buf<<"this is memory[buf]"<<memory[buf]<<endl;
-                loadedValue = (memory.find(buf) != memory.end()) ? memory[buf] : "00";
-            } else if (size == "HALF") {
-                for (int i = 0; i < 2; i++) {
-                    char buf[16];
-                    snprintf(buf, sizeof(buf), "0x%08X", address + i);
-                    loadedValue = ((memory.find(buf) != memory.end()) ? memory[buf] : "00") + loadedValue;
-                }
-            } else if (size == "WORD") {
-                for (int i = 0; i < 4; i++) {
-                    char buf[16];
-                    snprintf(buf, sizeof(buf), "0x%08X", address + i);
-                    
-                    loadedValue = ((memory.find(buf) != memory.end()) ? memory[buf] : "00") + loadedValue;
-
-                }
-            } else if (size == "DOUBLE") {
-                for (int i = 0; i < 8; i++) {
-                    char buf[16];
-                    snprintf(buf, sizeof(buf), "0x%08X", address + i);
-                    loadedValue = ((memory.find(buf) != memory.end()) ? memory[buf] : "00") + loadedValue;
-                }
+                loadedValue = (targetMemory.find(buf) != targetMemory.end()) ? targetMemory[buf] : "00";
             } else {
-                cout << "Error: Invalid memory size for load." << endl;
-                return;
+                int length = (size == "HALF") ? 2 : (size == "WORD") ? 4 : 8;
+                for (int i = 0; i < length; i++) {
+                    char buf[16];
+                    snprintf(buf, sizeof(buf), "0x%08X", address + i);
+                    loadedValue = ((targetMemory.find(buf) != targetMemory.end()) ? targetMemory[buf] : "00") + loadedValue;
+                }
             }
-            for (auto &ch : loadedValue) ch = toupper(ch);
+            for (auto& ch : loadedValue) ch = toupper(ch);
+            
             mdr = "0x" + loadedValue;
-            cout << "Loaded Value (MDR): " << mdr.value() << " from Address (MAR): " << mar.value() << endl;
+            
+            cout << ",\n    \"Operation\": \"Load\",\n";
+            cout << "    \"Value\": \"" << mdr.value() << "\"";
         }
-
         if (memWrite.has_value() && memWrite.value()) {
             if (!mdr.has_value() || mdr.value().length() < 2) {
-                cout << "Error: MDR is empty or too short." << endl;
+                cout << ",\n    \"Error\": \"MDR is empty or too short.\"\n";
+                cout << "  }\n";
+                cout << "}\n";
                 return;
             }
             string value = mdr.value().substr(2);
-            if (size == "BYTE" && value.size() < 2) {
-                cout << "Error: Insufficient data for BYTE write." << endl;
-                return;
-            } else if (size == "HALF" && value.size() < 4) {
-                cout << "Error: Insufficient data for HALF write." << endl;
-                return;
-            } else if (size == "WORD" && value.size() < 8) {
-                cout << "Error: Insufficient data for WORD write." << endl;
-                return;
-            } else if (size == "DOUBLE" && value.size() < 16) {
-                cout << "Error: Insufficient data for DOUBLE write." << endl;
+            int minSize = (size == "BYTE") ? 2 : (size == "HALF") ? 4 : (size == "WORD") ? 8 : 16;
+            if (value.size() < minSize) {
+                cout << ",\n    \"Error\": \"Insufficient data for " << size << " write.\"\n";
+                cout << "  }\n";
+                cout << "}\n";
                 return;
             }
-
-            if (size == "BYTE") {
+            int length = (size == "BYTE") ? 1 : (size == "HALF") ? 2 : (size == "WORD") ? 4 : 8;
+            for (int i = 0; i < length; i++) {
                 char buf[16];
-                snprintf(buf, sizeof(buf), "0x%08X", address);
-                memory[buf] = value.substr(value.size() - 2);
-            } else if (size == "HALF") {
-                for (int i = 0; i < 2; i++) {
-                    char buf[16];
-                    snprintf(buf, sizeof(buf), "0x%08X", address + i);
-                    memory[buf] = value.substr(value.size() - (2 * (i + 1)), 2);
-                }
-            } else if (size == "WORD") {
-                for (int i = 0; i < 4; i++) {
-                    char buf[16];
-                    snprintf(buf, sizeof(buf), "0x%08X", address + i);
-                    cout<<"buf = "<<buf<<"  value = " <<  value.substr(value.size() - (2 * (i + 1)), 2)<<endl;
-                    memory[buf] = value.substr(value.size() - (2 * (i + 1)), 2);
-                }
-            } else if (size == "DOUBLE") {
-                for (int i = 0; i < 8; i++) {
-                    char buf[16];
-                    snprintf(buf, sizeof(buf), "0x%08X", address + i);
-                    memory[buf] = value.substr(value.size() - (2 * (i + 1)), 2);
-                }
-            } else {
-                cout << "Error: Invalid memory size for store." << endl;
-                return;
+                snprintf(buf, sizeof(buf), "0x%08X", address + i);
+                targetMemory[buf] = value.substr(value.size() - (2 * (i + 1)), 2);
             }
-            cout << "Stored Value (MDR): " << mdr.value() << " to Address (MAR): " << mar.value() << endl;
+            cout << ",\n    \"Operation\": \"Store\",\n";
+            cout << "    \"Value\": \"" << mdr.value() << "\"";
         }
     }
+    cout << "\n  },\n";
 }
 
 void Simulator:: writeBack() {
 
+    cout << "  \"WriteBack\": {\n";
     if (!regWrite.has_value() || regWrite.value() == false) {
-        cout << "Skipping WriteBack: regWrite is disabled." << endl;
+        cout << "    \"Status\": \"Skipped\"\n";
+        cout << "  },\n";
+
         return;
     }
     if (!rd.has_value() || rd.value() == "00000") { // x0 should not be modified
-        cout << "Skipping WriteBack: Destination register is x0." << endl;
+        cout << "    \"Status\": \"Skipped\",\n";
+        cout << "    \"Reason\": \"Destination register is x0\"\n";
+        cout << "  },\n";
+
         return;
     }
     if (muxY == 0) {
@@ -863,6 +899,7 @@ void Simulator:: writeBack() {
     int regNum = stoi(rd.value(), nullptr, 2);   //hex to bin
     string registerName = "x" + to_string(regNum);
     registerFile[registerName] = ry;             //load then in reg file
-    cout << "WriteBack: Register " << registerName << " updated with " << ry << endl;
+    cout << "    \"Status\": \"Skipped\",\n";
+    cout << "    \"Reason\": \"Destination register is x0\"\n";
+    cout << "  },\n";
 }
-
