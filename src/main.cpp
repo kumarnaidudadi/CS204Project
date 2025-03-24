@@ -13,20 +13,20 @@ int main(int argc, char* argv[]) {
 
     string inputFilename = argv[1];
 
-    std::ofstream outFile("../output.txt");
+    std::ofstream outFile("../output.json");
     std::streambuf *coutbuf = std::cout.rdbuf(); 
     std::cout.rdbuf(outFile.rdbuf()); 
 
     Simulator sim;
+    
     sim.parseMemoryFile(inputFilename);
+    
     sim.load_program_memory(inputFilename); 
-    
-    
+    cout << "[\n";
+
     sim.run_RISCVSim();  
-    
-    for (auto &[addr, val] : sim.memory) {
-        if (val!="00") cout << "memory[" << addr << "] = " << val << endl;  
-    }
+
+    cout << "\n]\n";
 
     return 0;
 }
